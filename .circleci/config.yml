@@ -1,0 +1,52 @@
+version: 2
+
+jobs:
+
+    integrate:
+        docker:
+            - image: circleci/python:3.8
+        steps:
+            - checkout
+            - run: |
+                pip install --user tox
+                ./resources/gcp-install.sh
+                gcloud beta emulators pubsub start --project="i3-gcp-proj" &
+                tox integrate_tests -vv
+
+    examples:
+        docker:
+            - image: circleci/python:3.8
+        steps:
+            - checkout
+            - run: |
+                pip install --user tox
+                tox --notest -vv
+                . .tox/py/bin/activate
+                ./resources/gcp-install.sh
+                echo "First, Google's Examples:"
+                cd ./examples/googles_examples
+                ./run-using-emulator.sh
+                echo "Now, Our Examples:"
+                cd ../..
+                ./examples/run.sh
+
+
+    pycycle:
+        docker:
+            - image: circleci/python:3.8
+        steps:
+            - checkout
+            - run: |
+                pip install --user tox pycycle
+                tox --notest -vv
+                . .tox/py/bin/activate
+                pycycle --here --verbose
+
+
+workflows:
+    version: 2
+    build_and_test:
+        jobs:
+            - integrate
+            - examples
+            - pycycle
