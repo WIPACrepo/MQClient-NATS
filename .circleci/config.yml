@@ -22,13 +22,11 @@ jobs:
                 pip install --user tox
                 tox --notest -vv
                 . .tox/py/bin/activate
-                ./resources/gcp-install.sh
-                echo "First, Google's Examples:"
-                cd ./examples/googles_examples
-                ./run-using-emulator.sh
+                echo "First, NATS's Examples:"
+                cd ./
+                python ./examples/nats_examples/nats_jetstream.py
                 echo "Now, Our Examples:"
-                cd ../..
-                ./examples/run.sh
+                echo "TODO"
 
 
     pycycle:

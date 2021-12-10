@@ -1,5 +1,2 @@
 git+https://github.com/WIPACrepo/MQClient@v0.1.1#egg=mqclient
-google-api-core==1.30.0
-google-auth==1.31.0
-google-cloud-pubsub==2.6.1
-googleapis-common-protos==1.53.0
+nats-py[nkeys]
