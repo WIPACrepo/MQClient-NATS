@@ -1,4 +1,4 @@
-"""From https://github.com/nats-io/nats.py#jetstream."""
+"""From https://github.com/nats-io/nats.py/blob/main/examples/jetstream.py."""
 
 import asyncio
 
