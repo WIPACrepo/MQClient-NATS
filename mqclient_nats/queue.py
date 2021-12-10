@@ -1,11 +1,11 @@
-"""Queue class encapsulating a pub-sub messaging system with GCP."""
+"""Queue class encapsulating a pub-sub messaging system with NATS."""
 
 
 from typing import Any, cast
 
 import mqclient
 
-from . import gcp
+from . import nats
 
 
 class Queue(mqclient.queue.Queue):
@@ -13,7 +13,9 @@ class Queue(mqclient.queue.Queue):
 
     def __init__(self, *args: Any, **kargs: Any) -> None:
         super().__init__(
-            cast(mqclient.backend_interface.Backend, gcp.Backend),  # mypy is very picky
+            cast(
+                mqclient.backend_interface.Backend, nats.Backend
+            ),  # mypy is very picky
             *args,
             **kargs
         )

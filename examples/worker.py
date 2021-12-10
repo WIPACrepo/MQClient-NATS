@@ -3,7 +3,7 @@ queue."""
 
 import subprocess
 
-from mqclient_gcp import Queue
+from mqclient_nats import Queue
 
 
 def worker(recv_queue: Queue, send_queue: Queue) -> None:

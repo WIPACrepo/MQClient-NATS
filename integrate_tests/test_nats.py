@@ -1,4 +1,4 @@
-"""Run integration tests for GCP backend."""
+"""Run integration tests for NATS backend."""
 
 import logging
 
@@ -6,19 +6,19 @@ from mqclient.implementation_tests import integrate_backend_interface, integrate
 from mqclient.implementation_tests.utils import (  # pytest.fixture # noqa: F401 # pylint: disable=W0611
     queue_name,
 )
-from mqclient_gcp.gcp import Backend
+from mqclient_nats.nats import Backend
 
 logging.getLogger().setLevel(logging.DEBUG)
 logging.getLogger("flake8").setLevel(logging.WARNING)
 
 
-class TestGCPQueue(integrate_queue.PubSubQueue):
-    """Run PubSubQueue integration tests with GCP backend."""
+class TestNATSQueue(integrate_queue.PubSubQueue):
+    """Run PubSubQueue integration tests with NATS backend."""
 
     backend = Backend()
 
 
-class TestGCPBackend(integrate_backend_interface.PubSubBackendInterface):
-    """Run PubSubBackendInterface integration tests with GCP backend."""
+class TestNATSBackend(integrate_backend_interface.PubSubBackendInterface):
+    """Run PubSubBackendInterface integration tests with NATS backend."""
 
     backend = Backend()

@@ -13,14 +13,14 @@ subprocess.run(
 from wipac_dev_tools import SetupShop  # noqa: E402  # pylint: disable=C0413
 
 shop = SetupShop(
-    "mqclient_gcp",
+    "mqclient_nats",
     os.path.abspath(os.path.dirname(__file__)),
     ((3, 6), (3, 9)),
-    "Message Queue Client API with Google Cloud Platform (GCP)",
+    "Message Queue Client API with Google Cloud Platform (NATS)",
 )
 
 setup(
-    url="https://github.com/WIPACrepo/MQClient-GCP",
+    url="https://github.com/WIPACrepo/MQClient-NATS",
     package_data={shop.name: ["py.typed", "requirements.txt"]},
     **shop.get_kwargs(),
 )

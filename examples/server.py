@@ -2,7 +2,7 @@
 
 import typing
 
-from mqclient_gcp import Queue
+from mqclient_nats import Queue
 
 
 def server(work_queue: Queue, result_queue: Queue) -> None:
