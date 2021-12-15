@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Generator, List, Optional, Tuple
+from typing import Generator, List, Optional, Tuple, cast
 
 from mqclient import backend_interface, log_msgs
 from mqclient.backend_interface import (
@@ -32,21 +32,29 @@ class NATS(RawQueue):
         self.subject = subject
         self.stream_id = stream_id
 
-        self._connection = None
-        self.js = None
+        self._connection: Optional[nats.aio.client.Client] = None
+        self.js: Optional[nats.js.JetStream] = None
 
         logging.debug(f"Stream & Subject: {stream_id}/{self.subject}")
 
     def connect(self) -> None:
         """Set up connection and channel."""
         super().connect()
-        self._connection = await nats.connect(self.endpoint)
-        self.js = self._connection.jetstream()  # Create JetStream context
+        self._connection = cast(  # type: ignore[redundant-cast]
+            nats.aio.client.Client, await nats.connect(self.endpoint)
+        )
+        # Create JetStream context
+        self.js = cast(  # type: ignore[redundant-cast]
+            nats.js.JetStream,
+            self._connection.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT * 1000),
+        )
         await self.js.add_stream(name=self.stream_id, subjects=[self.subject])
 
     def close(self) -> None:
         """Close connection."""
         super().close()
+        if not self._connection:
+            raise ClosingFailedExcpetion("No connection to close.")
         self._connection.close()
 
 
@@ -61,7 +69,7 @@ class NATSPub(NATS, Pub):
     def __init__(self, endpoint: str, stream_id: str, subject: str):
         logging.debug(f"{log_msgs.INIT_PUB} ({endpoint}; {stream_id}; {subject})")
         super().__init__(endpoint, stream_id, subject)
-        # NATS is pub-based, so no extra instance needed
+        # NATS is pub-centric, so no extra instance needed
 
     def connect(self) -> None:
         """Set up pub, then create topic and any subscriptions indicated."""
@@ -80,7 +88,7 @@ class NATSPub(NATS, Pub):
         if not self.js:
             raise RuntimeError("JetStream is not connected")
 
-        ack = await self.js.publish(self.subject, msg)
+        ack: nats.js.api.PubAck = await self.js.publish(self.subject, msg)
         logging.debug(f"Sent Message w/ Ack: {ack}")
         logging.debug(log_msgs.SENT_MESSAGE)
 
@@ -103,9 +111,14 @@ class NATSSub(NATS, Sub):
         """Set up sub (pull subscription)."""
         logging.debug(log_msgs.CONNECTING_SUB)
         super().connect()
+        if not self.js:
+            raise RuntimeError("JetStream is not connected.")
 
         # TODO - configure: prefetch etc.
-        self.sub = await self.js.pull_subscribe(self.subject, "psub")
+        self.sub = cast(  # type: ignore[redundant-cast]
+            nats.js.JetStream.PullSubscription,
+            await self.js.pull_subscribe(self.subject, "psub"),
+        )
         logging.debug(log_msgs.CONNECTED_SUB)
 
     def close(self) -> None:
@@ -121,12 +134,18 @@ class NATSSub(NATS, Sub):
     ) -> Optional[Message]:
         """Get a message."""
         logging.debug(log_msgs.GETMSG_RECEIVE_MESSAGE)
+        if not self.sub:
+            raise RuntimeError("Subscriber is not connected.")
+
+        if not timeout_millis:
+            timeout_millis = TIMEOUT_MILLIS_DEFAULT
 
         try:
-            msg = await self.sub.fetch(1, timeout_millis * 1000)[0]
+            msg: nats.aio.msg.Msg = await self.sub.fetch(1, timeout_millis * 1000)[0]
             logging.debug(f"{log_msgs.GETMSG_RECEIVED_MESSAGE} ({msg}).")
+            # TODO - convert message type
             return msg
-        except IndexError:  # NOTE - on timeout -> this will be len=0
+        except IndexError:  # TODO - is this needed?
             logging.debug(log_msgs.GETMSG_NO_MESSAGE)
             return None
 
@@ -134,8 +153,16 @@ class NATSSub(NATS, Sub):
         self, timeout_millis: Optional[int], num_messages: int
     ) -> Generator[Message, None, None]:
         """Continuously generate messages until there are no more."""
+        if not self.sub:
+            raise RuntimeError("Subscriber is not connected.")
+
+        if not timeout_millis:
+            timeout_millis = TIMEOUT_MILLIS_DEFAULT
+
         while True:
-            msgs = await self.sub.fetch(num_messages, timeout_millis * 1000)
+            msgs: List[nats.aio.msg.Msg] = await self.sub.fetch(
+                num_messages, timeout_millis * 1000
+            )
             if not msgs:
                 return
             for msg in msgs:
@@ -148,7 +175,7 @@ class NATSSub(NATS, Sub):
             raise RuntimeError("subscriber is not connected")
 
         # Acknowledges the received messages so they will not be sent again.
-        await msg.ack()
+        await msg.ack()  # TODO - convert back to nat's Msg type
         logging.debug(f"{log_msgs.ACKED_MESSAGE} ({msg.msg_id!r}).")
 
     def reject_message(self, msg: Message) -> None:
@@ -157,7 +184,8 @@ class NATSSub(NATS, Sub):
         if not self.sub:
             raise RuntimeError("subscriber is not connected")
 
-        await msg.nack()
+        # TODO - convert back to nat's Msg type
+        await msg.nak()  # yes, it's "nak"
         logging.debug(f"{log_msgs.NACKED_MESSAGE} ({msg.msg_id!r}).")
 
     def message_generator(
