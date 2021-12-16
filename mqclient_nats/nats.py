@@ -129,6 +129,28 @@ class NATSSub(NATS, Sub):
             raise ClosingFailedExcpetion("No sub to close.")
         logging.debug(log_msgs.CLOSED_SUB)
 
+    @staticmethod
+    def _to_message(  # type: ignore[override]  # noqa: F821 # pylint: disable=W0221
+        msg: nats.aio.msg.Msg,  # pylint: disable=no-member
+    ) -> Optional[Message]:
+        """Transform NATS-Message to Message type."""
+        # TODO - is this the right id?
+        return Message(cast(str, msg.reply), cast(bytes, msg.data))
+
+    def _from_message(self, msg: Message) -> nats.aio.msg.Msg:
+        """Transform Message instance to NATS-Message.
+
+        Assumes the message came from this NATSSub instance.
+        """
+        return nats.aio.msg.Msg(
+            subject=self.subject,
+            reply=msg.msg_id,  # TODO - is this the right id?
+            data=msg.data,
+            sid=0,  # default
+            client=self._connection,
+            headers=None,  # default
+        )
+
     def get_message(
         self, timeout_millis: Optional[int] = TIMEOUT_MILLIS_DEFAULT
     ) -> Optional[Message]:
@@ -143,8 +165,7 @@ class NATSSub(NATS, Sub):
         try:
             msg: nats.aio.msg.Msg = await self.sub.fetch(1, timeout_millis * 1000)[0]
             logging.debug(f"{log_msgs.GETMSG_RECEIVED_MESSAGE} ({msg}).")
-            # TODO - convert message type
-            return msg
+            return self._to_message(msg)
         except IndexError:  # TODO - is this needed?
             logging.debug(log_msgs.GETMSG_NO_MESSAGE)
             return None
