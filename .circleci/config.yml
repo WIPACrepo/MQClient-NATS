@@ -9,8 +9,8 @@ jobs:
             - checkout
             - run: |
                 pip install --user tox
-                ./resources/gcp-install.sh
-                gcloud beta emulators pubsub start --project="i3-gcp-proj" &
+                ./resources/local-nats-js.sh &
+                sleep 15
                 tox integrate_tests -vv
 
     examples:
