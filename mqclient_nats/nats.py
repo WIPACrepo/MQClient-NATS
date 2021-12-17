@@ -57,7 +57,7 @@ class NATS(RawQueue):
         super().close()
         if not self._connection:
             raise ClosingFailedExcpetion("No connection to close.")
-        self._connection.close()
+        _sync(self._connection.close())
 
 
 class NATSPub(NATS, Pub):
@@ -152,6 +152,35 @@ class NATSSub(NATS, Sub):
             headers=None,  # default
         )
 
+    def _get_messages(
+        self, timeout_millis: Optional[int], num_messages: int
+    ) -> List[Message]:
+        """Get n messages.
+
+        The subscriber pulls a specific number of messages. The actual
+        number of messages pulled may be smaller than `num_messages`.
+        """
+        if not self.sub:
+            raise RuntimeError("Subscriber is not connected")
+
+        if not timeout_millis:
+            timeout_millis = TIMEOUT_MILLIS_DEFAULT
+
+        try:
+            nats_msgs: List[nats.aio.msg.Msg] = _sync(
+                self.sub.fetch(num_messages, timeout_millis // 1000)
+            )
+            # TODO - add retries
+        except nats.errors.TimeoutError:
+            return []
+
+        msgs = []
+        for recvd in nats_msgs:
+            msg = self._to_message(recvd)
+            if msg:
+                msgs.append(msg)
+        return msgs
+
     def get_message(
         self, timeout_millis: Optional[int] = TIMEOUT_MILLIS_DEFAULT
     ) -> Optional[Message]:
@@ -160,14 +189,11 @@ class NATSSub(NATS, Sub):
         if not self.sub:
             raise RuntimeError("Subscriber is not connected.")
 
-        if not timeout_millis:
-            timeout_millis = TIMEOUT_MILLIS_DEFAULT
-
         try:
-            msg: nats.aio.msg.Msg = _sync(self.sub.fetch(1, timeout_millis * 1000)[0])
+            msg = self._get_messages(timeout_millis, 1)[0]
             logging.debug(f"{log_msgs.GETMSG_RECEIVED_MESSAGE} ({msg}).")
-            return self._to_message(msg)
-        except IndexError:  # TODO - is this needed?
+            return msg
+        except IndexError:
             logging.debug(log_msgs.GETMSG_NO_MESSAGE)
             return None
 
@@ -178,13 +204,8 @@ class NATSSub(NATS, Sub):
         if not self.sub:
             raise RuntimeError("Subscriber is not connected.")
 
-        if not timeout_millis:
-            timeout_millis = TIMEOUT_MILLIS_DEFAULT
-
         while True:
-            msgs: List[nats.aio.msg.Msg] = _sync(
-                self.sub.fetch(num_messages, timeout_millis * 1000)
-            )
+            msgs = self._get_messages(timeout_millis, num_messages)
             if not msgs:
                 return
             for msg in msgs:
