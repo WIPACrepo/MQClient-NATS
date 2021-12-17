@@ -48,7 +48,7 @@ class NATS(RawQueue):
         # Create JetStream context
         self.js = cast(  # type: ignore[redundant-cast]
             nats.js.JetStream,
-            self._connection.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT * 1000),
+            self._connection.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000),
         )
         _sync(self.js.add_stream(name=self.stream_id, subjects=[self.subject]))
 
@@ -289,15 +289,15 @@ class Backend(backend_interface.Backend):
         Backend
     """
 
-    SUBJECT_ID = "i3-nats-subject"
-
     @staticmethod
     def create_pub_queue(address: str, name: str, auth_token: str = "") -> NATSPub:
         """Create a publishing queue.
 
         # NOTE - `auth_token` is not used currently
         """
-        q = NATSPub(address, name, Backend.SUBJECT_ID)  # pylint: disable=invalid-name
+        q = NATSPub(  # pylint: disable=invalid-name
+            address, name + "-stream", name + "-subject"
+        )
         q.connect()
         return q
 
@@ -309,7 +309,9 @@ class Backend(backend_interface.Backend):
 
         # NOTE - `auth_token` is not used currently
         """
-        q = NATSSub(address, name, Backend.SUBJECT_ID)  # pylint: disable=invalid-name
+        q = NATSSub(  # pylint: disable=invalid-name
+            address, name + "-stream", name + "-subject"
+        )
         q.prefetch = prefetch
         q.connect()
         return q
