@@ -286,8 +286,6 @@ class NATSSub(NATS, Sub):
                 # get message
                 logging.debug(log_msgs.MSGGEN_GET_NEW_MESSAGE)
                 msg = await _anext(gen, None)
-                logging.critical(type(msg))
-                assert isinstance(msg, Message)
                 if msg is None:
                     logging.info(log_msgs.MSGGEN_NO_MESSAGE_LOOK_BACK_IN_QUEUE)
                     break
