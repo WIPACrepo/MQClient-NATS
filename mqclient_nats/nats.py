@@ -86,7 +86,7 @@ class NATS(RawQueue):
 
     async def close(self) -> None:
         """Close connection."""
-        super().close()
+        await super().close()
         if not self._connection:
             raise ClosingFailedExcpetion("No connection to close.")
         await try_call(self, self._connection.close())
