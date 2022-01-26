@@ -71,7 +71,7 @@ class NATS(RawQueue):
 
     async def connect(self) -> None:
         """Set up connection and channel."""
-        super().connect()
+        await super().connect()
         self._connection = cast(
             nats.aio.client.Client, await try_call(self, nats.connect(self.endpoint))
         )
@@ -146,7 +146,7 @@ class NATSSub(NATS, Sub):
     async def connect(self) -> None:
         """Set up sub (pull subscription)."""
         logging.debug(log_msgs.CONNECTING_SUB)
-        super().connect()
+        await super().connect()
         if not self.js:
             raise RuntimeError("JetStream is not connected.")
 
