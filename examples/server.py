@@ -1,19 +1,24 @@
 """A server sends work out on one queue, and receives results on another."""
 
+import argparse
+import asyncio
+import logging
 import typing
 
+import coloredlogs  # type: ignore[import]
 from mqclient_nats import Queue
 
 
-def server(work_queue: Queue, result_queue: Queue) -> None:
+async def server(work_queue: Queue, result_queue: Queue) -> None:
     """Demo example server."""
-    for i in range(100):
-        work_queue.send({"id": i, "cmd": f'echo "{i}"'})
+    async with work_queue.sender() as out_stream:
+        for i in range(100):
+            await out_stream.send({"id": i, "cmd": f'echo "{i}"'})
 
     results = {}
     result_queue.timeout = 5
-    with result_queue.recv() as stream:
-        for data in stream:
+    async with result_queue.recv() as in_stream:
+        async for data in in_stream:
             assert isinstance(data, dict)
             results[typing.cast(int, data["id"])] = typing.cast(str, data["out"])
 
@@ -24,7 +29,7 @@ def server(work_queue: Queue, result_queue: Queue) -> None:
 
 
 if __name__ == "__main__":
-    import argparse
+    coloredlogs.install(level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(description="Worker")
     parser.add_argument("--address", default="localhost", help="queue address")
@@ -40,4 +45,4 @@ if __name__ == "__main__":
         address=args.address, name=args.result_queue, prefetch=args.prefetch
     )
 
-    server(workq, resultq)
+    asyncio.get_event_loop().run_until_complete(server(workq, resultq))
