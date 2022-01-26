@@ -4,7 +4,17 @@
 import logging
 import math
 import time
-from typing import Any, AsyncGenerator, Awaitable, List, Optional, TypeVar, cast
+from functools import partial
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    List,
+    Optional,
+    TypeVar,
+    cast,
+)
 
 from mqclient import backend_interface, log_msgs
 from mqclient.backend_interface import (
@@ -34,12 +44,12 @@ async def _anext(gen: AsyncGenerator[Any, Any], default: Any) -> Any:
         return default
 
 
-async def try_call(self: "NATS", func: Awaitable[T]) -> T:
+async def try_call(self: "NATS", func: Callable[[...], Awaitable[T]]) -> T:
     """Call `func` with auto-retries."""
     i = 0
     while True:
         try:
-            return await func
+            return await func()
         except:  # noqa: E722 # pylint:disable=bare-except
             if i == TRY_ATTEMPTS - 1:
                 logging.debug(log_msgs.TRYCALL_CONNECTION_ERROR_MAX_RETRIES)
@@ -73,7 +83,8 @@ class NATS(RawQueue):
         """Set up connection and channel."""
         await super().connect()
         self._connection = cast(
-            nats.aio.client.Client, await try_call(self, nats.connect(self.endpoint))
+            nats.aio.client.Client,
+            await try_call(self, partial(nats.connect, self.endpoint)),
         )
         # Create JetStream context
         self.js = cast(
@@ -81,7 +92,8 @@ class NATS(RawQueue):
             self._connection.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000),
         )
         await try_call(
-            self, self.js.add_stream(name=self.stream_id, subjects=[self.subject])
+            self,
+            partial(self.js.add_stream, name=self.stream_id, subjects=[self.subject]),
         )
 
     async def close(self) -> None:
@@ -89,7 +101,7 @@ class NATS(RawQueue):
         await super().close()
         if not self._connection:
             raise ClosingFailedExcpetion("No connection to close.")
-        await try_call(self, self._connection.close())
+        await try_call(self, partial(self._connection.close))
 
 
 class NATSPub(NATS, Pub):
@@ -123,7 +135,7 @@ class NATSPub(NATS, Pub):
             raise RuntimeError("JetStream is not connected")
 
         ack: nats.js.api.PubAck = await try_call(
-            self, self.js.publish(self.subject, msg)
+            self, partial(self.js.publish, self.subject, msg)
         )
         logging.debug(f"Sent Message w/ Ack: {ack}")
         logging.debug(log_msgs.SENT_MESSAGE)
@@ -152,7 +164,7 @@ class NATSSub(NATS, Sub):
 
         self.sub = cast(
             nats.js.JetStream.PullSubscription,
-            await try_call(self, self.js.pull_subscribe(self.subject, "psub")),
+            await try_call(self, partial(self.js.pull_subscribe, self.subject, "psub")),
         )
         logging.debug(log_msgs.CONNECTED_SUB)
 
@@ -202,7 +214,9 @@ class NATSSub(NATS, Sub):
         try:
             nats_msgs: List[nats.aio.msg.Msg] = await try_call(
                 self,
-                self.sub.fetch(num_messages, int(math.ceil(timeout_millis / 1000))),
+                partial(
+                    self.sub.fetch, num_messages, int(math.ceil(timeout_millis / 1000))
+                ),
             )
         except nats.errors.TimeoutError:
             return []
@@ -251,7 +265,7 @@ class NATSSub(NATS, Sub):
             raise RuntimeError("subscriber is not connected")
 
         # Acknowledges the received messages so they will not be sent again.
-        await try_call(self, self._from_message(msg).ack())
+        await try_call(self, partial(self._from_message(msg).ack))
         logging.debug(f"{log_msgs.ACKED_MESSAGE} ({msg.msg_id!r}).")
 
     async def reject_message(self, msg: Message) -> None:
@@ -260,7 +274,7 @@ class NATSSub(NATS, Sub):
         if not self.sub:
             raise RuntimeError("subscriber is not connected")
 
-        await try_call(self, self._from_message(msg).nak())  # yes, it's "nak"
+        await try_call(self, partial(self._from_message(msg).nak))  # yes, it's "nak"
         logging.debug(f"{log_msgs.NACKED_MESSAGE} ({msg.msg_id!r}).")
 
     async def message_generator(
