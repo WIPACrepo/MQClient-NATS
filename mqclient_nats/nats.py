@@ -61,11 +61,11 @@ class NATS(RawQueue):
     async def connect(self) -> None:
         """Set up connection and channel."""
         super().connect()
-        self._connection = cast(  # type: ignore[redundant-cast]
+        self._connection = cast(
             nats.aio.client.Client, await try_call(self, nats.connect(self.endpoint))
         )
         # Create JetStream context
-        self.js = cast(  # type: ignore[redundant-cast]
+        self.js = cast(
             nats.js.JetStream,
             self._connection.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000),
         )
@@ -139,7 +139,7 @@ class NATSSub(NATS, Sub):
         if not self.js:
             raise RuntimeError("JetStream is not connected.")
 
-        self.sub = cast(  # type: ignore[redundant-cast]
+        self.sub = cast(
             nats.js.JetStream.PullSubscription,
             await try_call(self, self.js.pull_subscribe(self.subject, "psub")),
         )
@@ -222,7 +222,7 @@ class NATSSub(NATS, Sub):
 
     async def _gen_messages(
         self, timeout_millis: Optional[int], num_messages: int
-    ) -> AsyncGenerator[Message, None, None]:
+    ) -> AsyncGenerator[Message, None]:
         """Continuously generate messages until there are no more."""
         if not self.sub:
             raise RuntimeError("Subscriber is not connected.")
@@ -255,7 +255,7 @@ class NATSSub(NATS, Sub):
 
     async def message_generator(
         self, timeout: int = 60, propagate_error: bool = True
-    ) -> AsyncGenerator[Optional[Message], None, None]:
+    ) -> AsyncGenerator[Optional[Message], None]:
         """Yield Messages.
 
         Generate messages with variable timeout.
