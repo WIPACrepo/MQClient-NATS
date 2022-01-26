@@ -25,12 +25,24 @@ jobs:
                 echo "Setting Up NATS Server with JetStream:"
                 ./resources/local-nats-js.sh &
                 sleep 15
-                echo "First, NATS's Examples:"
-                cd ./
-                python ./examples/nats_examples/nats_jetstream.py
                 echo "Now, Our Examples:"
                 echo "TODO"
 
+    nats-examples:
+        docker:
+            - image: circleci/python:3.8
+        steps:
+            - checkout
+            - run: |
+                pip install --user tox
+                tox --notest -vv
+                . .tox/py/bin/activate
+                echo "Setting Up NATS Server with JetStream:"
+                ./resources/local-nats-js.sh &
+                sleep 15
+                echo "First, NATS's Examples:"
+                cd ./
+                python ./examples/nats_examples/nats_jetstream.py
 
     pycycle:
         docker:
@@ -50,4 +62,5 @@ workflows:
         jobs:
             - integrate
             - examples
+            - nats-examples
             - pycycle
