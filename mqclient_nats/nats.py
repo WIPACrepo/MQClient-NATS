@@ -4,7 +4,7 @@
 import logging
 import math
 import time
-from typing import AsyncGenerator, Awaitable, List, Optional, TypeVar, cast
+from typing import Any, AsyncGenerator, Awaitable, List, Optional, TypeVar, cast
 
 from mqclient import backend_interface, log_msgs
 from mqclient.backend_interface import (
@@ -21,6 +21,17 @@ from mqclient.backend_interface import (
 import nats  # type: ignore[import]
 
 T = TypeVar("T")  # the callable/awaitable return type
+
+
+async def _anext(gen: AsyncGenerator[Any, Any], default: Any) -> Any:
+    """Provide the functionality of python 3.10's `anext()`.
+
+    https://docs.python.org/3/library/functions.html#anext
+    """
+    try:
+        return gen.__anext__()
+    except StopAsyncIteration:
+        return default
 
 
 async def try_call(self: "NATS", func: Awaitable[T]) -> T:
@@ -275,7 +286,7 @@ class NATSSub(NATS, Sub):
             while True:
                 # get message
                 logging.debug(log_msgs.MSGGEN_GET_NEW_MESSAGE)
-                msg = next(gen, None)
+                msg = await _anext(gen, None)
                 if msg is None:
                     logging.info(log_msgs.MSGGEN_NO_MESSAGE_LOOK_BACK_IN_QUEUE)
                     break
