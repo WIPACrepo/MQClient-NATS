@@ -204,7 +204,6 @@ class NATSSub(NATS, Sub):
                 self,
                 self.sub.fetch(num_messages, int(math.ceil(timeout_millis / 1000))),
             )
-            # TODO - add retries
         except nats.errors.TimeoutError:
             return []
 
