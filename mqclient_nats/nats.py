@@ -29,7 +29,7 @@ async def _anext(gen: AsyncGenerator[Any, Any], default: Any) -> Any:
     https://docs.python.org/3/library/functions.html#anext
     """
     try:
-        return gen.__anext__()
+        return await gen.__anext__()
     except StopAsyncIteration:
         return default
 
