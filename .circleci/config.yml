@@ -25,8 +25,8 @@ jobs:
                 echo "Setting Up NATS Server with JetStream:"
                 ./resources/local-nats-js.sh &
                 sleep 15
-                echo "Now, Our Examples:"
-                echo "TODO"
+                ./examples/run.sh
+
 
     nats-examples:
         docker:
@@ -40,8 +40,6 @@ jobs:
                 echo "Setting Up NATS Server with JetStream:"
                 ./resources/local-nats-js.sh &
                 sleep 15
-                echo "First, NATS's Examples:"
-                cd ./
                 python ./examples/nats_examples/nats_jetstream.py
 
     pycycle:
