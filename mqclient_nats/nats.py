@@ -44,7 +44,7 @@ async def _anext(gen: AsyncGenerator[Any, Any], default: Any) -> Any:
         return default
 
 
-async def try_call(self: "NATS", func: Callable[[...], Awaitable[T]]) -> T:
+async def try_call(self: "NATS", func: Callable[..., Awaitable[T]]) -> T:
     """Call `func` with auto-retries."""
     i = 0
     while True:
