@@ -123,6 +123,7 @@ class NATSPub(NATS, Pub):
         """Set up pub, then create topic and any subscriptions indicated."""
         logging.debug(log_msgs.CONNECTING_PUB)
         await super().connect()
+        logging.debug(log_msgs.CONNECTED_PUB)
 
     async def close(self) -> None:
         """Close pub (no-op)."""
