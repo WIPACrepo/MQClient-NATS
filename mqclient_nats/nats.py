@@ -50,7 +50,7 @@ async def try_call(self: "NATS", func: Callable[..., Awaitable[T]]) -> T:
     while True:
         if i > 0:
             logging.debug(
-                f"{log_msgs.TRYYIELD_CONNECTION_ERROR_TRY_AGAIN} (attempt #{i+1})..."
+                f"{log_msgs.TRYCALL_CONNECTION_ERROR_TRY_AGAIN} (attempt #{i+1})..."
             )
 
         try:
@@ -89,25 +89,21 @@ class NATS(RawQueue):
         """Set up connection and channel."""
         await super().connect()
         self._connection = cast(
-            nats.aio.client.Client,
-            await try_call(self, partial(nats.connect, self.endpoint)),
+            nats.aio.client.Client, await nats.connect(self.endpoint)
         )
         # Create JetStream context
         self.js = cast(
             nats.js.JetStream,
             self._connection.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000),
         )
-        await try_call(
-            self,
-            partial(self.js.add_stream, name=self.stream_id, subjects=[self.subject]),
-        )
+        await self.js.add_stream(name=self.stream_id, subjects=[self.subject])
 
     async def close(self) -> None:
         """Close connection."""
         await super().close()
         if not self._connection:
             raise ClosingFailedExcpetion("No connection to close.")
-        await try_call(self, partial(self._connection.close))
+        await self._connection.close()
 
 
 class NATSPub(NATS, Pub):
@@ -170,7 +166,7 @@ class NATSSub(NATS, Sub):
 
         self.sub = cast(
             nats.js.JetStream.PullSubscription,
-            await try_call(self, partial(self.js.pull_subscribe, self.subject, "psub")),
+            await self.js.pull_subscribe(self.subject, "psub"),
         )
         logging.debug(log_msgs.CONNECTED_SUB)
 
