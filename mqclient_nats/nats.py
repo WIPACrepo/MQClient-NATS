@@ -179,7 +179,7 @@ class NATSSub(NATS, Sub):
         await super().close()
         if not self._subscription:
             raise ClosingFailedExcpetion("No sub to close.")
-        await self._subscription.unsubscribe()
+        await self._subscription._sub.unsubscribe()  # pylint:disable=protected-access
         logging.debug(log_msgs.CLOSED_SUB)
 
     @staticmethod
