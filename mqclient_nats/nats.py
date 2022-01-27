@@ -176,10 +176,10 @@ class NATSSub(NATS, Sub):
     async def close(self) -> None:
         """Close sub."""
         logging.debug(log_msgs.CLOSING_SUB)
-        await super().close()
         if not self._subscription:
             raise ClosingFailedExcpetion("No sub to close.")
         await self._subscription._sub.unsubscribe()  # pylint:disable=protected-access
+        await super().close()
         logging.debug(log_msgs.CLOSED_SUB)
 
     @staticmethod
