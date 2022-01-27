@@ -50,12 +50,12 @@ async def try_call(self: "NATS", func: Callable[..., Awaitable[T]]) -> T:
     while True:
         try:
             return await func()
-        except:  # noqa: E722 # pylint:disable=bare-except
+        except Exception as e:  # pylint:disable=broad-except
             if i == TRY_ATTEMPTS - 1:
                 logging.debug(log_msgs.TRYCALL_CONNECTION_ERROR_MAX_RETRIES)
                 raise
             await self.close()
-            logging.debug(log_msgs.TRYCALL_CONNECTION_ERROR_TRY_AGAIN)
+            logging.debug(f"{log_msgs.TRYCALL_CONNECTION_ERROR_TRY_AGAIN} ({e})")
             time.sleep(RETRY_DELAY)
             await self.connect()
             i += 1
