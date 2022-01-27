@@ -55,6 +55,8 @@ async def try_call(self: "NATS", func: Callable[..., Awaitable[T]]) -> T:
 
         try:
             return await func()
+        except nats.errors.TimeoutError:
+            raise
         except Exception as e:  # pylint:disable=broad-except
             logging.debug(f"[try_call()] Encountered exception: '{e}'")
             if i == TRY_ATTEMPTS - 1:
