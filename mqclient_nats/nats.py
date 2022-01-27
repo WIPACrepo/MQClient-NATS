@@ -89,7 +89,8 @@ class NATS(RawQueue):
         """Set up connection and channel."""
         await super().connect()
         self._connection = cast(
-            nats.aio.client.Client, await nats.connect(self.endpoint)
+            nats.aio.client.Client,
+            await nats.connect(self.endpoint, max_reconnect_attempts=-1),
         )
         # Create JetStream context
         self.js = cast(
