@@ -157,7 +157,7 @@ class NATSSub(NATS, Sub):
     def __init__(self, endpoint: str, stream_id: str, subject: str):
         logging.debug(f"{log_msgs.INIT_SUB} ({endpoint}; {stream_id}; {subject})")
         super().__init__(endpoint, stream_id, subject)
-        self.sub: Optional[nats.js.JetStream.PullSubscription] = None
+        self._subscription: Optional[nats.js.JetStream.PullSubscription] = None
         self.prefetch = 1
 
     async def connect(self) -> None:
@@ -167,7 +167,7 @@ class NATSSub(NATS, Sub):
         if not self.js:
             raise RuntimeError("JetStream is not connected.")
 
-        self.sub = cast(
+        self._subscription = cast(
             nats.js.JetStream.PullSubscription,
             await self.js.pull_subscribe(self.subject, "psub"),
         )
@@ -177,8 +177,9 @@ class NATSSub(NATS, Sub):
         """Close sub."""
         logging.debug(log_msgs.CLOSING_SUB)
         await super().close()
-        if not self.sub:
+        if not self._subscription:
             raise ClosingFailedExcpetion("No sub to close.")
+        await self._subscription.unsubscribe()
         logging.debug(log_msgs.CLOSED_SUB)
 
     @staticmethod
@@ -210,7 +211,7 @@ class NATSSub(NATS, Sub):
         The subscriber pulls a specific number of messages. The actual
         number of messages pulled may be smaller than `num_messages`.
         """
-        if not self.sub:
+        if not self._subscription:
             raise RuntimeError("Subscriber is not connected")
 
         if not timeout_millis:
@@ -220,7 +221,9 @@ class NATSSub(NATS, Sub):
             nats_msgs: List[nats.aio.msg.Msg] = await try_call(
                 self,
                 partial(
-                    self.sub.fetch, num_messages, int(math.ceil(timeout_millis / 1000))
+                    self._subscription.fetch,
+                    num_messages,
+                    int(math.ceil(timeout_millis / 1000)),
                 ),
             )
         except nats.errors.TimeoutError:
@@ -238,7 +241,7 @@ class NATSSub(NATS, Sub):
     ) -> Optional[Message]:
         """Get a message."""
         logging.debug(log_msgs.GETMSG_RECEIVE_MESSAGE)
-        if not self.sub:
+        if not self._subscription:
             raise RuntimeError("Subscriber is not connected.")
 
         try:
@@ -253,7 +256,7 @@ class NATSSub(NATS, Sub):
         self, timeout_millis: Optional[int], num_messages: int
     ) -> AsyncGenerator[Message, None]:
         """Continuously generate messages until there are no more."""
-        if not self.sub:
+        if not self._subscription:
             raise RuntimeError("Subscriber is not connected.")
 
         while True:
@@ -266,7 +269,7 @@ class NATSSub(NATS, Sub):
     async def ack_message(self, msg: Message) -> None:
         """Ack a message from the queue."""
         logging.debug(log_msgs.ACKING_MESSAGE)
-        if not self.sub:
+        if not self._subscription:
             raise RuntimeError("subscriber is not connected")
 
         # Acknowledges the received messages so they will not be sent again.
@@ -276,7 +279,7 @@ class NATSSub(NATS, Sub):
     async def reject_message(self, msg: Message) -> None:
         """Reject (nack) a message from the queue."""
         logging.debug(log_msgs.NACKING_MESSAGE)
-        if not self.sub:
+        if not self._subscription:
             raise RuntimeError("subscriber is not connected")
 
         await try_call(self, partial(self._from_message(msg).nak))  # yes, it's "nak"
@@ -295,7 +298,7 @@ class NATSSub(NATS, Sub):
             propagate_error {bool} -- should errors from downstream code kill the generator? (default: {True})
         """
         logging.debug(log_msgs.MSGGEN_ENTERED)
-        if not self.sub:
+        if not self._subscription:
             raise RuntimeError("subscriber is not connected")
 
         msg = None
