@@ -48,19 +48,23 @@ async def try_call(self: "NATS", func: Callable[..., Awaitable[T]]) -> T:
     """Call `func` with auto-retries."""
     i = 0
     while True:
+        if i > 0:
+            logging.debug(
+                f"{log_msgs.TRYYIELD_CONNECTION_ERROR_TRY_AGAIN} (attempt #{i+1})..."
+            )
+
         try:
             return await func()
         except Exception as e:  # pylint:disable=broad-except
+            logging.debug(f"[try_call()] Encountered exception: '{e}'")
             if i == TRY_ATTEMPTS - 1:
-                logging.debug(
-                    f"{log_msgs.TRYCALL_CONNECTION_ERROR_MAX_RETRIES} ('{e}')"
-                )
+                logging.debug(log_msgs.TRYCALL_CONNECTION_ERROR_MAX_RETRIES)
                 raise
-            await self.close()
-            logging.debug(f"{log_msgs.TRYCALL_CONNECTION_ERROR_TRY_AGAIN} ('{e}')")
-            time.sleep(RETRY_DELAY)
-            await self.connect()
-            i += 1
+
+        await self.close()
+        time.sleep(RETRY_DELAY)
+        await self.connect()
+        i += 1
 
 
 class NATS(RawQueue):
