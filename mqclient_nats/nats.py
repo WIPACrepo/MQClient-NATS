@@ -1,6 +1,6 @@
 """Back-end using NATS."""
 
-import asyncio
+
 import logging
 import math
 import time
@@ -106,7 +106,6 @@ class NATS(RawQueue):
         if not self._nats_client:
             raise ClosingFailedExcpetion("No connection to close.")
         await self._nats_client.close()
-        await asyncio.sleep(5)
 
 
 class NATSPub(NATS, Pub):
