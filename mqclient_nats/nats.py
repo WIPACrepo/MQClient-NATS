@@ -82,7 +82,7 @@ class NATS(RawQueue):
         self.subject = subject
         self.stream_id = stream_id
 
-        self._connection: Optional[nats.aio.client.Client] = None
+        self._nats_client: Optional[nats.aio.client.Client] = None
         self.js: Optional[nats.js.JetStream] = None
 
         logging.debug(f"Stream & Subject: {stream_id}/{self.subject}")
@@ -90,22 +90,23 @@ class NATS(RawQueue):
     async def connect(self) -> None:
         """Set up connection and channel."""
         await super().connect()
-        self._connection = cast(
+        self._nats_client = cast(
             nats.aio.client.Client, await nats.connect(self.endpoint)
         )
         # Create JetStream context
         self.js = cast(
             nats.js.JetStream,
-            self._connection.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000),
+            self._nats_client.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000),
         )
         await self.js.add_stream(name=self.stream_id, subjects=[self.subject])
 
     async def close(self) -> None:
         """Close connection."""
         await super().close()
-        if not self._connection:
+        if not self._nats_client:
             raise ClosingFailedExcpetion("No connection to close.")
-        await self._connection.close()
+        await self._nats_client.flush()
+        await self._nats_client.close()
 
 
 class NATSPub(NATS, Pub):
@@ -178,7 +179,6 @@ class NATSSub(NATS, Sub):
         logging.debug(log_msgs.CLOSING_SUB)
         if not self._subscription:
             raise ClosingFailedExcpetion("No sub to close.")
-        await self._subscription._sub.flush()  # pylint:disable=protected-access
         await self._subscription._sub.drain()  # pylint:disable=protected-access
         await super().close()
         logging.debug(log_msgs.CLOSED_SUB)
@@ -200,7 +200,7 @@ class NATSSub(NATS, Sub):
             reply=msg.msg_id,
             data=msg.data,
             sid=0,  # default
-            client=self._connection,
+            client=self._nats_client,
             headers=None,  # default
         )
 
