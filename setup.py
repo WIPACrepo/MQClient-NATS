@@ -15,8 +15,8 @@ from wipac_dev_tools import SetupShop  # noqa: E402  # pylint: disable=C0413
 shop = SetupShop(
     "mqclient_nats",
     os.path.abspath(os.path.dirname(__file__)),
-    ((3, 6), (3, 9)),
-    "Message Queue Client API with Google Cloud Platform (NATS)",
+    ((3, 7), (3, 9)),
+    "Message Queue Client API with NATS",
 )
 
 setup(
