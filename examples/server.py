@@ -11,14 +11,14 @@ from mqclient_nats import Queue
 
 async def server(work_queue: Queue, result_queue: Queue) -> None:
     """Demo example server."""
-    async with work_queue.sender() as out_stream:
+    async with work_queue.open_pub() as p:
         for i in range(100):
-            await out_stream.send({"id": i, "cmd": f'echo "{i}"'})
+            await p.send({"id": i, "cmd": f'echo "{i}"'})
 
     results = {}
     result_queue.timeout = 5
-    async with result_queue.recv() as in_stream:
-        async for data in in_stream:
+    async with result_queue.open_sub() as stream:
+        async for data in stream:
             assert isinstance(data, dict)
             results[typing.cast(int, data["id"])] = typing.cast(str, data["out"])
 

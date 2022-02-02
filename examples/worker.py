@@ -12,12 +12,12 @@ from mqclient_nats import Queue
 
 async def worker(recv_queue: Queue, send_queue: Queue) -> None:
     """Demo example worker."""
-    async with recv_queue.recv() as in_stream, send_queue.sender() as out_stream:
-        async for data in in_stream:
+    async with recv_queue.open_sub() as stream, send_queue.open_pub() as p:
+        async for data in stream:
             cmd = data["cmd"]
             out = subprocess.check_output(cmd, shell=True)
             data["out"] = out.decode("utf-8")
-            await out_stream.send(data)
+            await p.send(data)
 
 
 if __name__ == "__main__":
