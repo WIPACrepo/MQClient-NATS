@@ -1,2 +1,2 @@
-git+https://github.com/WIPACrepo/MQClient@v0.2.3#egg=mqclient
+git+https://github.com/WIPACrepo/MQClient@v0.3.0#egg=mqclient
 nats-py[nkeys]
