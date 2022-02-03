@@ -1,0 +1,64 @@
+version: 2
+
+jobs:
+
+    integrate:
+        docker:
+            - image: circleci/python:3.8
+        steps:
+            - checkout
+            - run: |
+                pip install --user tox
+                ./resources/local-nats-js.sh &
+                sleep 15
+                tox integrate_tests -vv
+
+    examples:
+        docker:
+            - image: circleci/python:3.8
+        steps:
+            - checkout
+            - run: |
+                pip install --user tox
+                tox --notest -vv
+                . .tox/py/bin/activate
+                echo "Setting Up NATS Server with JetStream:"
+                ./resources/local-nats-js.sh &
+                sleep 15
+                ./examples/run.sh
+
+
+    nats-examples:
+        docker:
+            - image: circleci/python:3.8
+        steps:
+            - checkout
+            - run: |
+                pip install --user tox
+                tox --notest -vv
+                . .tox/py/bin/activate
+                echo "Setting Up NATS Server with JetStream:"
+                ./resources/local-nats-js.sh &
+                sleep 15
+                python ./examples/nats_examples/nats_jetstream.py
+
+    pycycle:
+        docker:
+            - image: circleci/python:3.8
+        steps:
+            - checkout
+            - run: |
+                pip install --user tox pycycle
+                tox --notest -vv
+                . .tox/py/bin/activate
+                pycycle --here --verbose
+
+
+workflows:
+    version: 2
+    build_and_test:
+        jobs:
+            - integrate
+            - examples
+            - nats-examples
+            - pycycle
