@@ -194,11 +194,11 @@ class NATSSub(NATS, Sub):
         Assumes the message came from this NATSSub instance.
         """
         return nats.aio.msg.Msg(
+            _client=self._nats_client,
             subject=self.subject,
             reply=msg.msg_id,
             data=msg.data,
             sid=0,  # default
-            client=self._nats_client,
             headers=None,  # default
         )
 
