@@ -83,7 +83,7 @@ class NATS(RawQueue):
         self.stream_id = stream_id
 
         self._nats_client: Optional[nats.aio.client.Client] = None
-        self.js: Optional[nats.js.JetStream] = None
+        self.js: Optional[nats.js.JetStreamContext] = None
 
         logging.debug(f"Stream & Subject: {stream_id}/{self.subject}")
 
@@ -95,7 +95,7 @@ class NATS(RawQueue):
         )
         # Create JetStream context
         self.js = cast(
-            nats.js.JetStream,
+            nats.js.JetStreamContext,
             self._nats_client.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000),
         )
         await self.js.add_stream(name=self.stream_id, subjects=[self.subject])
@@ -157,7 +157,7 @@ class NATSSub(NATS, Sub):
     def __init__(self, endpoint: str, stream_id: str, subject: str):
         logging.debug(f"{log_msgs.INIT_SUB} ({endpoint}; {stream_id}; {subject})")
         super().__init__(endpoint, stream_id, subject)
-        self._subscription: Optional[nats.js.JetStream.PullSubscription] = None
+        self._subscription: Optional[nats.js.JetStreamContext.PullSubscription] = None
         self.prefetch = 1
 
     async def connect(self) -> None:
@@ -168,7 +168,7 @@ class NATSSub(NATS, Sub):
             raise RuntimeError("JetStream is not connected.")
 
         self._subscription = cast(
-            nats.js.JetStream.PullSubscription,
+            nats.js.JetStreamContext.PullSubscription,
             await self.js.pull_subscribe(self.subject, "psub"),
         )
         logging.debug(log_msgs.CONNECTED_SUB)
