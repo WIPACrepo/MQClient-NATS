@@ -1,3 +1,0 @@
-git+https://github.com/WIPACrepo/MQClient@v0.3.0#egg=mqclient
-nats-py==2.0.0
-nkeys==0.1.0

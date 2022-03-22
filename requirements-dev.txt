@@ -1,6 +1,7 @@
 asyncstdlib
-mypy
+coloredlogs
 flake8
+mypy
 pytest
 pytest-asyncio
 pytest-mock

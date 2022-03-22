@@ -13,6 +13,17 @@ jobs:
                 sleep 15
                 tox integrate_tests -vv
 
+    integrate-w-telemetry:
+        docker:
+            - image: circleci/python:3.8
+        steps:
+            - checkout
+            - run: |
+                pip install --user tox wipac-mqclient[telemetry]
+                ./resources/local-nats-js.sh &
+                sleep 15
+                tox integrate_tests -vv
+
     examples:
         docker:
             - image: circleci/python:3.8
@@ -59,6 +70,7 @@ workflows:
     build_and_test:
         jobs:
             - integrate
+            - integrate-w-telemetry
             - examples
             - nats-examples
             - pycycle
