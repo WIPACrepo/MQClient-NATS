@@ -28,7 +28,9 @@ from mqclient.backend_interface import (
     Sub,
 )
 
-import nats  # type: ignore[import]
+import nats
+
+LOGGER = logging.getLogger("mqclient-nats")
 
 T = TypeVar("T")  # the callable/awaitable return type
 
@@ -49,7 +51,7 @@ async def try_call(self: "NATS", func: Callable[..., Awaitable[T]]) -> T:
     i = 0
     while True:
         if i > 0:
-            logging.debug(
+            LOGGER.debug(
                 f"{log_msgs.TRYCALL_CONNECTION_ERROR_TRY_AGAIN} (attempt #{i+1})..."
             )
 
@@ -58,9 +60,9 @@ async def try_call(self: "NATS", func: Callable[..., Awaitable[T]]) -> T:
         except nats.errors.TimeoutError:
             raise
         except Exception as e:  # pylint:disable=broad-except
-            logging.debug(f"[try_call()] Encountered exception: '{e}'")
+            LOGGER.debug(f"[try_call()] Encountered exception: '{e}'")
             if i == TRY_ATTEMPTS - 1:
-                logging.debug(log_msgs.TRYCALL_CONNECTION_ERROR_MAX_RETRIES)
+                LOGGER.debug(log_msgs.TRYCALL_CONNECTION_ERROR_MAX_RETRIES)
                 raise
 
         await self.close()
@@ -85,19 +87,14 @@ class NATS(RawQueue):
         self._nats_client: Optional[nats.aio.client.Client] = None
         self.js: Optional[nats.js.JetStreamContext] = None
 
-        logging.debug(f"Stream & Subject: {stream_id}/{self.subject}")
+        LOGGER.debug(f"Stream & Subject: {stream_id}/{self.subject}")
 
     async def connect(self) -> None:
         """Set up connection and channel."""
         await super().connect()
-        self._nats_client = cast(
-            nats.aio.client.Client, await nats.connect(self.endpoint)
-        )
+        self._nats_client = await nats.connect(self.endpoint)
         # Create JetStream context
-        self.js = cast(
-            nats.js.JetStreamContext,
-            self._nats_client.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000),
-        )
+        self.js = self._nats_client.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000)
         await self.js.add_stream(name=self.stream_id, subjects=[self.subject])
 
     async def close(self) -> None:
@@ -117,33 +114,33 @@ class NATSPub(NATS, Pub):
     """
 
     def __init__(self, endpoint: str, stream_id: str, subject: str):
-        logging.debug(f"{log_msgs.INIT_PUB} ({endpoint}; {stream_id}; {subject})")
+        LOGGER.debug(f"{log_msgs.INIT_PUB} ({endpoint}; {stream_id}; {subject})")
         super().__init__(endpoint, stream_id, subject)
         # NATS is pub-centric, so no extra instance needed
 
     async def connect(self) -> None:
         """Set up pub, then create topic and any subscriptions indicated."""
-        logging.debug(log_msgs.CONNECTING_PUB)
+        LOGGER.debug(log_msgs.CONNECTING_PUB)
         await super().connect()
-        logging.debug(log_msgs.CONNECTED_PUB)
+        LOGGER.debug(log_msgs.CONNECTED_PUB)
 
     async def close(self) -> None:
         """Close pub (no-op)."""
-        logging.debug(log_msgs.CLOSING_PUB)
+        LOGGER.debug(log_msgs.CLOSING_PUB)
         await super().close()
-        logging.debug(log_msgs.CLOSED_PUB)
+        LOGGER.debug(log_msgs.CLOSED_PUB)
 
     async def send_message(self, msg: bytes) -> None:
         """Send a message (publish)."""
-        logging.debug(log_msgs.SENDING_MESSAGE)
+        LOGGER.debug(log_msgs.SENDING_MESSAGE)
         if not self.js:
             raise RuntimeError("JetStream is not connected")
 
         ack: nats.js.api.PubAck = await try_call(
             self, partial(self.js.publish, self.subject, msg)
         )
-        logging.debug(f"Sent Message w/ Ack: {ack}")
-        logging.debug(log_msgs.SENT_MESSAGE)
+        LOGGER.debug(f"Sent Message w/ Ack: {ack}")
+        LOGGER.debug(log_msgs.SENT_MESSAGE)
 
 
 class NATSSub(NATS, Sub):
@@ -155,50 +152,49 @@ class NATSSub(NATS, Sub):
     """
 
     def __init__(self, endpoint: str, stream_id: str, subject: str):
-        logging.debug(f"{log_msgs.INIT_SUB} ({endpoint}; {stream_id}; {subject})")
+        LOGGER.debug(f"{log_msgs.INIT_SUB} ({endpoint}; {stream_id}; {subject})")
         super().__init__(endpoint, stream_id, subject)
         self._subscription: Optional[nats.js.JetStreamContext.PullSubscription] = None
         self.prefetch = 1
 
     async def connect(self) -> None:
         """Set up sub (pull subscription)."""
-        logging.debug(log_msgs.CONNECTING_SUB)
+        LOGGER.debug(log_msgs.CONNECTING_SUB)
         await super().connect()
         if not self.js:
             raise RuntimeError("JetStream is not connected.")
 
-        self._subscription = cast(
-            nats.js.JetStreamContext.PullSubscription,
-            await self.js.pull_subscribe(self.subject, "psub"),
-        )
-        logging.debug(log_msgs.CONNECTED_SUB)
+        self._subscription = await self.js.pull_subscribe(self.subject, "psub")
+        LOGGER.debug(log_msgs.CONNECTED_SUB)
 
     async def close(self) -> None:
         """Close sub."""
-        logging.debug(log_msgs.CLOSING_SUB)
+        LOGGER.debug(log_msgs.CLOSING_SUB)
         if not self._subscription:
             raise ClosingFailedExcpetion("No sub to close.")
         await super().close()
-        logging.debug(log_msgs.CLOSED_SUB)
+        LOGGER.debug(log_msgs.CLOSED_SUB)
 
     @staticmethod
     def _to_message(  # type: ignore[override]  # noqa: F821 # pylint: disable=W0221
         msg: nats.aio.msg.Msg,  # pylint: disable=no-member
     ) -> Optional[Message]:
         """Transform NATS-Message to Message type."""
-        return Message(cast(str, msg.reply), cast(bytes, msg.data))
+        return Message(msg.reply, msg.data)
 
     def _from_message(self, msg: Message) -> nats.aio.msg.Msg:
         """Transform Message instance to NATS-Message.
 
         Assumes the message came from this NATSSub instance.
         """
+        if not self._nats_client:
+            raise RuntimeError("Client is not connected")
+
         return nats.aio.msg.Msg(
             _client=self._nats_client,
             subject=self.subject,
-            reply=msg.msg_id,
+            reply=cast(str, msg.msg_id),  # we know this is str b/c `_to_message()`
             data=msg.data,
-            sid=0,  # default
             headers=None,  # default
         )
 
@@ -239,16 +235,16 @@ class NATSSub(NATS, Sub):
         self, timeout_millis: Optional[int] = TIMEOUT_MILLIS_DEFAULT
     ) -> Optional[Message]:
         """Get a message."""
-        logging.debug(log_msgs.GETMSG_RECEIVE_MESSAGE)
+        LOGGER.debug(log_msgs.GETMSG_RECEIVE_MESSAGE)
         if not self._subscription:
             raise RuntimeError("Subscriber is not connected.")
 
         try:
             msg = (await self._get_messages(timeout_millis, 1))[0]
-            logging.debug(f"{log_msgs.GETMSG_RECEIVED_MESSAGE} ({msg}).")
+            LOGGER.debug(f"{log_msgs.GETMSG_RECEIVED_MESSAGE} ({msg}).")
             return msg
         except IndexError:
-            logging.debug(log_msgs.GETMSG_NO_MESSAGE)
+            LOGGER.debug(log_msgs.GETMSG_NO_MESSAGE)
             return None
 
     async def _gen_messages(
@@ -267,22 +263,22 @@ class NATSSub(NATS, Sub):
 
     async def ack_message(self, msg: Message) -> None:
         """Ack a message from the queue."""
-        logging.debug(log_msgs.ACKING_MESSAGE)
+        LOGGER.debug(log_msgs.ACKING_MESSAGE)
         if not self._subscription:
             raise RuntimeError("subscriber is not connected")
 
         # Acknowledges the received messages so they will not be sent again.
         await try_call(self, partial(self._from_message(msg).ack))
-        logging.debug(f"{log_msgs.ACKED_MESSAGE} ({msg.msg_id!r}).")
+        LOGGER.debug(f"{log_msgs.ACKED_MESSAGE} ({msg.msg_id!r}).")
 
     async def reject_message(self, msg: Message) -> None:
         """Reject (nack) a message from the queue."""
-        logging.debug(log_msgs.NACKING_MESSAGE)
+        LOGGER.debug(log_msgs.NACKING_MESSAGE)
         if not self._subscription:
             raise RuntimeError("subscriber is not connected")
 
         await try_call(self, partial(self._from_message(msg).nak))  # yes, it's "nak"
-        logging.debug(f"{log_msgs.NACKED_MESSAGE} ({msg.msg_id!r}).")
+        LOGGER.debug(f"{log_msgs.NACKED_MESSAGE} ({msg.msg_id!r}).")
 
     async def message_generator(
         self, timeout: int = 60, propagate_error: bool = True
@@ -296,7 +292,7 @@ class NATSSub(NATS, Sub):
             timeout {int} -- timeout in seconds for inactivity (default: {60})
             propagate_error {bool} -- should errors from downstream code kill the generator? (default: {True})
         """
-        logging.debug(log_msgs.MSGGEN_ENTERED)
+        LOGGER.debug(log_msgs.MSGGEN_ENTERED)
         if not self._subscription:
             raise RuntimeError("subscriber is not connected")
 
@@ -305,23 +301,23 @@ class NATSSub(NATS, Sub):
             gen = self._gen_messages(timeout * 1000, self.prefetch)
             while True:
                 # get message
-                logging.debug(log_msgs.MSGGEN_GET_NEW_MESSAGE)
+                LOGGER.debug(log_msgs.MSGGEN_GET_NEW_MESSAGE)
                 msg = await _anext(gen, None)
                 if msg is None:
-                    logging.info(log_msgs.MSGGEN_NO_MESSAGE_LOOK_BACK_IN_QUEUE)
+                    LOGGER.info(log_msgs.MSGGEN_NO_MESSAGE_LOOK_BACK_IN_QUEUE)
                     break
 
                 # yield message to consumer
                 try:
-                    logging.debug(f"{log_msgs.MSGGEN_YIELDING_MESSAGE} [{msg}]")
+                    LOGGER.debug(f"{log_msgs.MSGGEN_YIELDING_MESSAGE} [{msg}]")
                     yield msg
                 # consumer throws Exception...
                 except Exception as e:  # pylint: disable=W0703
-                    logging.debug(log_msgs.MSGGEN_DOWNSTREAM_ERROR)
+                    LOGGER.debug(log_msgs.MSGGEN_DOWNSTREAM_ERROR)
                     if propagate_error:
-                        logging.debug(log_msgs.MSGGEN_PROPAGATING_ERROR)
+                        LOGGER.debug(log_msgs.MSGGEN_PROPAGATING_ERROR)
                         raise
-                    logging.warning(
+                    LOGGER.warning(
                         f"{log_msgs.MSGGEN_EXCEPTED_DOWNSTREAM_ERROR} {e}.",
                         exc_info=True,
                     )
@@ -332,8 +328,8 @@ class NATSSub(NATS, Sub):
 
         # generator exit (explicit close(), or break in consumer's loop)
         except GeneratorExit:
-            logging.debug(log_msgs.MSGGEN_GENERATOR_EXITING)
-            logging.debug(log_msgs.MSGGEN_GENERATOR_EXITED)
+            LOGGER.debug(log_msgs.MSGGEN_GENERATOR_EXITING)
+            LOGGER.debug(log_msgs.MSGGEN_GENERATOR_EXITED)
 
 
 class Backend(backend_interface.Backend):
