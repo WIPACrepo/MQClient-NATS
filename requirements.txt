@@ -6,9 +6,9 @@
 #
 ed25519==1.5
     # via nkeys
-nats-py[nkeys]==2.0.0
+nats-py[nkeys]==2.1.0
     # via wipac-mqclient-nats (setup.py)
 nkeys==0.1.0
     # via nats-py
-wipac-mqclient==0.4.0
+wipac-mqclient==0.5.0
     # via wipac-mqclient-nats (setup.py)
