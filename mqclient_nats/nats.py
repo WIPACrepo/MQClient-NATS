@@ -28,7 +28,7 @@ from mqclient.backend_interface import (
     Sub,
 )
 
-import nats  # type: ignore[import]
+import nats
 
 LOGGER = logging.getLogger("mqclient-nats")
 
@@ -92,14 +92,9 @@ class NATS(RawQueue):
     async def connect(self) -> None:
         """Set up connection and channel."""
         await super().connect()
-        self._nats_client = cast(
-            nats.aio.client.Client, await nats.connect(self.endpoint)
-        )
+        self._nats_client = await nats.connect(self.endpoint)
         # Create JetStream context
-        self.js = cast(
-            nats.js.JetStreamContext,
-            self._nats_client.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000),
-        )
+        self.js = self._nats_client.jetstream(timeout=TIMEOUT_MILLIS_DEFAULT // 1000)
         await self.js.add_stream(name=self.stream_id, subjects=[self.subject])
 
     async def close(self) -> None:
@@ -169,10 +164,7 @@ class NATSSub(NATS, Sub):
         if not self.js:
             raise RuntimeError("JetStream is not connected.")
 
-        self._subscription = cast(
-            nats.js.JetStreamContext.PullSubscription,
-            await self.js.pull_subscribe(self.subject, "psub"),
-        )
+        self._subscription = await self.js.pull_subscribe(self.subject, "psub")
         LOGGER.debug(log_msgs.CONNECTED_SUB)
 
     async def close(self) -> None:
@@ -188,7 +180,7 @@ class NATSSub(NATS, Sub):
         msg: nats.aio.msg.Msg,  # pylint: disable=no-member
     ) -> Optional[Message]:
         """Transform NATS-Message to Message type."""
-        return Message(cast(str, msg.reply), cast(bytes, msg.data))
+        return Message(msg.reply, msg.data)
 
     def _from_message(self, msg: Message) -> nats.aio.msg.Msg:
         """Transform Message instance to NATS-Message.
@@ -198,9 +190,8 @@ class NATSSub(NATS, Sub):
         return nats.aio.msg.Msg(
             _client=self._nats_client,
             subject=self.subject,
-            reply=msg.msg_id,
+            reply=cast(str, msg.msg_id),  # we know this is str b/c `_to_message()`
             data=msg.data,
-            sid=0,  # default
             headers=None,  # default
         )
 
