@@ -187,6 +187,9 @@ class NATSSub(NATS, Sub):
 
         Assumes the message came from this NATSSub instance.
         """
+        if not self._nats_client:
+            raise RuntimeError("Client is not connected")
+
         return nats.aio.msg.Msg(
             _client=self._nats_client,
             subject=self.subject,
